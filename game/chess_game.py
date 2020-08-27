@@ -2,8 +2,8 @@ import sys, pygame, os
 
 def draw_background():
     is_next_tile_dark = False
-    for x in range(8):
-        for y in range(8):
+    for y in range(8):
+        for x in range(8):
             if (is_next_tile_dark):
                 screen.blit(dark_tile_scaled,
                             (x * tile_side_length, y * tile_side_length))
@@ -13,74 +13,81 @@ def draw_background():
             is_next_tile_dark = not is_next_tile_dark
         is_next_tile_dark = not is_next_tile_dark
 
-
 def draw_pieces():
-    for x in range(8):
-        for y in range(8):
+    for y in range(8):
+        for x in range(8):
             piece = chess_board.board_grid[x][y]
-            if (piece is not None):
+            if piece is not None:
                 screen.blit(piece.get_image(),
-                            (y * tile_side_length, x * tile_side_length))
+                            (x * tile_side_length, y * tile_side_length))
+
+def draw_moves_mask():
+    if chess_board.active_piece is not None:
+        x, y = chess_board.active_piece_coordinates
+        screen.blit(move_tile_scaled,
+                    (x * tile_side_length, y * tile_side_length))
+
+        available_moves = chess_board.get_active_piece_available_moves()
+        for move_coordinates in available_moves:
+            x, y = move_coordinates
+            screen.blit(move_tile_scaled,
+                        (x * tile_side_length, y * tile_side_length))
+
 
 class Piece:
-    def __init__(self, is_white):
+    def __init__(self, is_white, is_up):
         self.is_white = is_white
+        self.is_up = is_up
         self.image = None
-
-    def move(self):
-        pass
 
     def get_image(self):
         return self.image
 
 class Pawn(Piece):
-    def __init__(self, is_white):
-        super().__init__(is_white)
+    def __init__(self, is_white, is_up):
+        super().__init__(is_white, is_up)
         if is_white:
             self.image = pawn_white_scaled
         else:
             self.image = pawn_black_scaled
 
-        self.hasMoved = False
-
-    #def move(self):
-        #if not hasMoved:
+        self.has_moved = False
 
 class Knight(Piece):
-    def __init__(self, is_white):
-        super().__init__(is_white)
+    def __init__(self, is_white, is_up):
+        super().__init__(is_white, is_up)
         if is_white:
             self.image = knight_white_scaled
         else:
             self.image = knight_black_scaled
 
 class Bishop(Piece):
-    def __init__(self, is_white):
-        super().__init__(is_white)
+    def __init__(self, is_white, is_up):
+        super().__init__(is_white, is_up)
         if is_white:
             self.image = bishop_white_scaled
         else:
             self.image = bishop_black_scaled
 
 class Rook(Piece):
-    def __init__(self, is_white):
-        super().__init__(is_white)
+    def __init__(self, is_white, is_up):
+        super().__init__(is_white, is_up)
         if is_white:
             self.image = rook_white_scaled
         else:
             self.image = rook_black_scaled
 
 class Queen(Piece):
-    def __init__(self, is_white):
-        super().__init__(is_white)
+    def __init__(self, is_white, is_up):
+        super().__init__(is_white, is_up)
         if is_white:
             self.image = queen_white_scaled
         else:
             self.image = queen_black_scaled
 
 class King(Piece):
-    def __init__(self, is_white):
-        super().__init__(is_white)
+    def __init__(self, is_white, is_up):
+        super().__init__(is_white, is_up)
         if is_white:
             self.image = king_white_scaled
         else:
@@ -90,24 +97,170 @@ class Board():
     def __init__(self):
         self.board_grid = [[None] * 8 for i in range(8)] 
 
-        is_white_side = False
-        for row in [0, 7]:
-            self.board_grid[row][0] = Rook(is_white=is_white_side)
-            self.board_grid[row][1] = Knight(is_white=is_white_side)
-            self.board_grid[row][2] = Bishop(is_white=is_white_side)
-            self.board_grid[row][3] = Queen(is_white=is_white_side)
-            self.board_grid[row][4] = King(is_white=is_white_side)
-            self.board_grid[row][5] = Bishop(is_white=is_white_side)
-            self.board_grid[row][6] = Knight(is_white=is_white_side)
-            self.board_grid[row][7] = Rook(is_white=is_white_side)
-            is_white_side = True
+        self.board_grid[0][0] = Rook(is_white=False, is_up=True)
+        self.board_grid[1][0] = Knight(is_white=False, is_up=True)
+        self.board_grid[2][0] = Bishop(is_white=False, is_up=True)
+        self.board_grid[3][0] = Queen(is_white=False, is_up=True)
+        self.board_grid[4][0] = King(is_white=False, is_up=True)
+        self.board_grid[5][0] = Bishop(is_white=False, is_up=True)
+        self.board_grid[6][0] = Knight(is_white=False, is_up=True)
+        self.board_grid[7][0] = Rook(is_white=False, is_up=True)
     
         for column in range(8):
-            self.board_grid[1][column] = Pawn(is_white=False)
-            self.board_grid[6][column] = Pawn(is_white=True)
+            self.board_grid[column][1] = Pawn(is_white=False, is_up=True)
+            self.board_grid[column][6] = Pawn(is_white=True, is_up=False)
+
+        self.board_grid[0][7] = Rook(is_white=True, is_up=False)
+        self.board_grid[1][7] = Knight(is_white=True, is_up=False)
+        self.board_grid[2][7] = Bishop(is_white=True, is_up=False)
+        self.board_grid[3][7] = Queen(is_white=True, is_up=False)
+        self.board_grid[4][7] = King(is_white=True, is_up=False)
+        self.board_grid[5][7] = Bishop(is_white=True, is_up=False)
+        self.board_grid[6][7] = Knight(is_white=True, is_up=False)
+        self.board_grid[7][7] = Rook(is_white=True, is_up=False)
+
+        #self.board_grid[3][4] = Queen(is_white=True, is_up=False)
+        #self.board_grid[2][4] = King(is_white=False, is_up=False)
 
         #print(self.board_grid)
         self.active_piece = None
+        self.active_piece_coordinates = None
+
+    def has_piece_on_position(self, coordinates):
+        x, y = coordinates
+        return self.board_grid[x][y] is not None
+
+    def set_active_piece(self, coordinates):
+        x, y = coordinates
+        self.active_piece = self.board_grid[x][y]
+        self.active_piece_coordinates = coordinates
+
+    def get_active_piece_available_moves(self):
+        if self.active_piece is not None:
+            x_pos, y_pos = self.active_piece_coordinates
+            available_moves = []
+
+            if isinstance(self.active_piece, Pawn):
+                if self.active_piece.is_up:
+                    dir_sign = 1
+                else:
+                    dir_sign = -1
+
+                self.check_and_add_position(
+                    available_moves, (x_pos, y_pos + dir_sign))
+
+                if not self.active_piece.has_moved:
+                    self.check_and_add_position(
+                        available_moves, (x_pos, y_pos + dir_sign * 2))
+
+            elif isinstance(self.active_piece, Knight):
+                for offset_1 in [-2, 2]:
+                    for offset_2 in [-1, 1]:
+                        self.check_and_add_position(
+                            available_moves, (x_pos + offset_1, y_pos + offset_2))
+                        self.check_and_add_position(
+                            available_moves, (x_pos + offset_2, y_pos + offset_1))
+
+            elif isinstance(self.active_piece, Bishop):
+                for x_offset in [-1, 1]:
+                    for y_offset in [-1, 1]:
+                        x_piece, y_piece = self.active_piece_coordinates
+                        x, y = x_piece + x_offset, y_piece + y_offset
+                        position = (x, y)
+
+                        has_reached_obstacle = False
+                        while self.is_valid_position(position) and not has_reached_obstacle:
+                            self.add_position(available_moves, position)
+                            
+                            if self.has_piece_on_position(position):
+                                has_reached_obstacle = True
+
+                            x, y = x + x_offset, y + y_offset
+                            position = (x, y)
+
+            elif isinstance(self.active_piece, Rook):
+                offsets = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+                for offset in offsets:
+                    x_offset, y_offset = offset
+                    x_piece, y_piece = self.active_piece_coordinates
+                    x, y = x_piece + x_offset, y_piece + y_offset
+                    position = (x, y)
+
+                    has_reached_obstacle = False
+                    while self.is_valid_position(position) and not has_reached_obstacle:
+                        self.add_position(available_moves, position)
+
+                        if self.has_piece_on_position(position):
+                            has_reached_obstacle = True
+
+                        x, y = x + x_offset, y + y_offset
+                        position = (x, y)
+
+            elif isinstance(self.active_piece, Queen):
+                for x_offset in [-1, 0, 1]:
+                    for y_offset in [-1, 0, 1]:
+                        if x_offset == 0 and y_offset == 0:
+                            pass
+
+                        x_piece, y_piece = self.active_piece_coordinates
+                        x, y = x_piece + x_offset, y_piece + y_offset
+                        position = (x, y)
+
+                        has_reached_obstacle = False
+                        while self.is_valid_position(position) and not has_reached_obstacle:
+                            self.add_position(available_moves, position)
+
+                            if self.has_piece_on_position(position):
+                                has_reached_obstacle = True
+
+                            x, y = x + x_offset, y + y_offset
+                            position = (x, y)
+
+            elif isinstance(self.active_piece, King):
+                for x_offset in [-1, 0, 1]:
+                    for y_offset in [-1, 0, 1]:
+                        if x_offset == 0 and y_offset == 0:
+                            pass
+
+                        x_piece, y_piece = self.active_piece_coordinates
+                        x, y = x_piece + x_offset, y_piece + y_offset
+                        position = (x, y)
+
+                        self.check_and_add_position(available_moves, position)
+
+                        if self.has_piece_on_position(position):
+                            has_reached_obstacle = True
+
+            
+            print(available_moves)
+            return available_moves
+        else:
+            return None
+
+    def add_position(self, pos_list, coordinates):
+        if not self.has_piece_on_position(coordinates):
+                pos_list.append(coordinates)
+        else:
+            other_piece = self.get_piece_at_position(coordinates)
+            if self.are_pieces_enemies(self.active_piece, other_piece):
+                pos_list.append(coordinates)
+
+    def check_and_add_position(self, pos_list, coordinates):
+        if self.is_valid_position(coordinates):
+            self.add_position(pos_list, coordinates)
+
+
+    def get_piece_at_position(self, coordinates):
+        x_pos, y_pos = coordinates
+        return self.board_grid[x_pos][y_pos]
+
+    def are_pieces_enemies(self, piece_1, piece_2):
+        return piece_1.is_white != piece_2.is_white
+
+    def is_valid_position(self, coordinates):
+        x_pos, y_pos = coordinates
+        return x_pos > -1 and x_pos < 8 and y_pos > -1 and y_pos < 8
+        
 
 
         
@@ -129,11 +282,15 @@ dark_tile = pygame.image.load(os.path.join(
     board_path, "brown_tile.png")).convert()
 light_tile = pygame.image.load(os.path.join(
     board_path, "clay_tile.png")).convert()
+move_tile = pygame.image.load(os.path.join(
+    board_path, "lgray_tile.png")).convert()
 
 dark_tile_scaled = pygame.transform.scale(
     dark_tile, (tile_side_length, tile_side_length))
 light_tile_scaled = pygame.transform.scale(
     light_tile, (tile_side_length, tile_side_length))
+move_tile_scaled = pygame.transform.scale(
+    move_tile, (tile_side_length, tile_side_length))
 
 
 pawn_white = pygame.image.load(os.path.join(
@@ -210,5 +367,14 @@ while 1:
             #print(mouse_x, mouse_y)
             grid_x = int(mouse_x / tile_side_length)
             grid_y = int(mouse_y / tile_side_length)
+            coordinates = (grid_x, grid_y)
             print(grid_x, grid_y)
+
+            if chess_board.has_piece_on_position(coordinates):
+                chess_board.set_active_piece(coordinates)
+                
+                draw_background()
+                draw_moves_mask()
+                draw_pieces()
+                pygame.display.update()
 
