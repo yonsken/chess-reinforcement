@@ -27,7 +27,7 @@ def draw_moves_mask():
         screen.blit(move_tile_scaled,
                     (x * tile_side_length, y * tile_side_length))
 
-        available_moves = chess_board.get_active_piece_available_moves()
+        available_moves = chess_board.active_piece_moves
         for move_coordinates in available_moves:
             x, y = move_coordinates
             screen.blit(move_tile_scaled,
@@ -96,7 +96,9 @@ class King(Piece):
 class Board():
     def __init__(self):
         self.board_grid = [[None] * 8 for i in range(8)] 
+        self.reset_board()
 
+    def reset_board(self):
         self.board_grid[0][0] = Rook(is_white=False, is_up=True)
         self.board_grid[1][0] = Knight(is_white=False, is_up=True)
         self.board_grid[2][0] = Bishop(is_white=False, is_up=True)
@@ -119,10 +121,6 @@ class Board():
         self.board_grid[6][7] = Knight(is_white=True, is_up=False)
         self.board_grid[7][7] = Rook(is_white=True, is_up=False)
 
-        #self.board_grid[3][4] = Queen(is_white=True, is_up=False)
-        #self.board_grid[2][4] = King(is_white=False, is_up=False)
-
-        #print(self.board_grid)
         self.active_piece = None
         self.active_piece_coordinates = None
 
@@ -134,6 +132,7 @@ class Board():
         x, y = coordinates
         self.active_piece = self.board_grid[x][y]
         self.active_piece_coordinates = coordinates
+        self.active_piece_moves = self.get_active_piece_available_moves()
 
     def get_active_piece_available_moves(self):
         if self.active_piece is not None:
@@ -146,12 +145,24 @@ class Board():
                 else:
                     dir_sign = -1
 
-                self.check_and_add_position(
-                    available_moves, (x_pos, y_pos + dir_sign))
-
-                if not self.active_piece.has_moved:
+                move_position = (x_pos, y_pos + dir_sign)
+                if not self.has_piece_on_position(move_position):
                     self.check_and_add_position(
-                        available_moves, (x_pos, y_pos + dir_sign * 2))
+                        available_moves, move_position)
+
+                    if not self.active_piece.has_moved:
+                        self.check_and_add_position(
+                            available_moves, (x_pos, y_pos + dir_sign * 2))
+
+                possible_attack_positions = [
+                    (x_pos + 1, y_pos + dir_sign), (x_pos - 1, y_pos + dir_sign)]
+
+                for position in possible_attack_positions:
+                    if self.is_valid_position(position) and self.has_piece_on_position(position):
+                        other_piece = self.get_piece_at_position(position)
+                        if self.are_pieces_enemies(self.active_piece, other_piece):
+                            self.add_position(available_moves, position)
+
 
             elif isinstance(self.active_piece, Knight):
                 for offset_1 in [-2, 2]:
@@ -249,7 +260,6 @@ class Board():
         if self.is_valid_position(coordinates):
             self.add_position(pos_list, coordinates)
 
-
     def get_piece_at_position(self, coordinates):
         x_pos, y_pos = coordinates
         return self.board_grid[x_pos][y_pos]
@@ -260,6 +270,21 @@ class Board():
     def is_valid_position(self, coordinates):
         x_pos, y_pos = coordinates
         return x_pos > -1 and x_pos < 8 and y_pos > -1 and y_pos < 8
+
+    def move_active_piece(self, target_coordinates):
+        x_target, y_target = target_coordinates
+        x_start, y_start = self.active_piece_coordinates
+        self.board_grid[x_target][y_target] = self.active_piece
+        self.board_grid[x_start][y_start] = None
+
+        if isinstance(self.active_piece, Pawn):
+            if self.active_piece.has_moved == False:
+                self.active_piece.has_moved = True
+
+    def reset_active_piece(self):
+        self.active_piece = None
+        self.active_piece_coordinates = None
+        self.active_piece_moves = None
         
 
 
@@ -362,19 +387,27 @@ while 1:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             sys.exit()
-        elif event.type == pygame.MOUSEBUTTONUP:
+        elif event.type == pygame.MOUSEBUTTONDOWN:
             mouse_x, mouse_y = pygame.mouse.get_pos()
-            #print(mouse_x, mouse_y)
             grid_x = int(mouse_x / tile_side_length)
             grid_y = int(mouse_y / tile_side_length)
             coordinates = (grid_x, grid_y)
-            print(grid_x, grid_y)
+            #print(grid_x, grid_y)
+            
+            if chess_board.active_piece is not None:
+                if coordinates in chess_board.active_piece_moves:
+                    chess_board.move_active_piece(coordinates)
+                    chess_board.reset_active_piece()
+                elif chess_board.has_piece_on_position(coordinates):
+                    chess_board.set_active_piece(coordinates)
+                else:
+                    chess_board.reset_active_piece()
 
-            if chess_board.has_piece_on_position(coordinates):
+            elif chess_board.has_piece_on_position(coordinates):
                 chess_board.set_active_piece(coordinates)
                 
-                draw_background()
-                draw_moves_mask()
-                draw_pieces()
-                pygame.display.update()
+            draw_background()
+            draw_moves_mask()
+            draw_pieces()
+            pygame.display.update()
 
