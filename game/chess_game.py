@@ -238,10 +238,6 @@ class Board():
                         position = (x, y)
 
                         self.check_and_add_position(available_moves, position)
-
-                        if self.has_piece_on_position(position):
-                            has_reached_obstacle = True
-
             
             print(available_moves)
             return available_moves
