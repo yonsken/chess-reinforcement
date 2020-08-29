@@ -25,13 +25,13 @@ def draw_moves_mask():
     if chess_board.active_piece is not None:
         x, y = chess_board.active_piece_coordinates
         screen.blit(move_tile_scaled,
-                    (x * tile_side_length, y * tile_side_length))
+                    (x * tile_side_length, y * tile_side_length), special_flags=pygame.BLEND_ADD)
 
         available_moves = chess_board.active_piece_moves
         for move_coordinates in available_moves:
             x, y = move_coordinates
             screen.blit(move_tile_scaled,
-                        (x * tile_side_length, y * tile_side_length))
+                        (x * tile_side_length, y * tile_side_length), special_flags=pygame.BLEND_ADD)
 
 
 class Piece:
@@ -297,6 +297,7 @@ tile_side_length = 64
 screen_size = (tile_side_length * 8, tile_side_length * 8)
 
 screen = pygame.display.set_mode(screen_size)
+clock = pygame.time.Clock()
 
 # Load resources
 dark_tile = pygame.image.load(os.path.join(
@@ -406,4 +407,6 @@ while 1:
             draw_moves_mask()
             draw_pieces()
             pygame.display.update()
+
+    clock.tick(60)
 
