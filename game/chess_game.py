@@ -1,97 +1,102 @@
 import sys, pygame, os
 
-def draw_background():
-    is_next_tile_dark = False
-    for y in range(8):
-        for x in range(8):
-            if (is_next_tile_dark):
-                screen.blit(dark_tile_scaled,
-                            (x * tile_side_length, y * tile_side_length))
-            else:
-                screen.blit(light_tile_scaled,
-                            (x * tile_side_length, y * tile_side_length))
-            is_next_tile_dark = not is_next_tile_dark
-        is_next_tile_dark = not is_next_tile_dark
+def load_image(image_name):
+    full_name = os.path.join(board_path, image_name)
+    try:
+        image = pygame.image.load(full_name)
+    except pygame.error as message:
+        print('Cannot load image: ', image_name)
+        raise SystemExit(message)
+    image = image.convert_alpha()
+    image_scaled = pygame.transform.scale(
+        image, (tile_side_px, tile_side_px))
+    return image_scaled, image_scaled.get_rect()
 
-def draw_pieces():
-    for y in range(8):
-        for x in range(8):
-            piece = chess_board.board_grid[x][y]
-            if piece is not None:
-                screen.blit(piece.get_image(),
-                            (x * tile_side_length, y * tile_side_length))
 
-def draw_moves_mask():
+def draw_chess_board(screen_coordinates):
+    board = board_backround.copy()
+
     if chess_board.active_piece is not None:
         x, y = chess_board.active_piece_coordinates
-        screen.blit(move_tile_scaled,
-                    (x * tile_side_length, y * tile_side_length), special_flags=pygame.BLEND_ADD)
+        board.blit(move_tile_scaled,
+                   (x * tile_side_px, y * tile_side_px), special_flags=pygame.BLEND_ADD)
 
         available_moves = chess_board.active_piece_moves
         for move_coordinates in available_moves:
             x, y = move_coordinates
-            screen.blit(move_tile_scaled,
-                        (x * tile_side_length, y * tile_side_length), special_flags=pygame.BLEND_ADD)
+            board.blit(move_tile_scaled,
+                       (x * tile_side_px, y * tile_side_px), special_flags=pygame.BLEND_ADD)
+    for y in range(8):
+        for x in range(8):
+            piece = chess_board.board_grid[x][y]
+            if piece is not None:
+                board.blit(piece.get_image(),
+                            (x * tile_side_px, y * tile_side_px))
+
+    x_screen, y_screen = screen_coordinates
+    screen.blit(board, (x_screen, y_screen))
 
 
-class Piece:
-    def __init__(self, is_white, is_up):
+
+class Piece(pygame.sprite.Sprite):
+    def __init__(self, image_name, is_white, is_up):
+        pygame.sprite.Sprite.__init__(self)
+        self.image, self.rect = load_image(image_name)
         self.is_white = is_white
         self.is_up = is_up
-        self.image = None
 
     def get_image(self):
         return self.image
 
 class Pawn(Piece):
     def __init__(self, is_white, is_up):
-        super().__init__(is_white, is_up)
         if is_white:
-            self.image = pawn_white_scaled
+            image_name = "white_pawn.png"
         else:
-            self.image = pawn_black_scaled
+            image_name = "black_pawn.png"
+        super().__init__(image_name, is_white, is_up)
 
         self.has_moved = False
 
 class Knight(Piece):
     def __init__(self, is_white, is_up):
-        super().__init__(is_white, is_up)
         if is_white:
-            self.image = knight_white_scaled
+            image_name = "white_knight.png"
         else:
-            self.image = knight_black_scaled
+            image_name = "black_knight.png"
+        super().__init__(image_name, is_white, is_up)
 
 class Bishop(Piece):
     def __init__(self, is_white, is_up):
-        super().__init__(is_white, is_up)
         if is_white:
-            self.image = bishop_white_scaled
+            image_name = "white_bishop.png"
         else:
-            self.image = bishop_black_scaled
+            image_name = "black_bishop.png"
+        super().__init__(image_name, is_white, is_up)
 
 class Rook(Piece):
     def __init__(self, is_white, is_up):
-        super().__init__(is_white, is_up)
         if is_white:
-            self.image = rook_white_scaled
+            image_name = "white_rook.png"
         else:
-            self.image = rook_black_scaled
+            image_name = "black_rook.png"
+        super().__init__(image_name, is_white, is_up)
 
 class Queen(Piece):
     def __init__(self, is_white, is_up):
-        super().__init__(is_white, is_up)
         if is_white:
-            self.image = queen_white_scaled
+            image_name = "white_queen.png"
         else:
-            self.image = queen_black_scaled
+            image_name = "black_queen.png"
+        super().__init__(image_name, is_white, is_up)
 
 class King(Piece):
     def __init__(self, is_white, is_up):
-        super().__init__(is_white, is_up)
         if is_white:
-            self.image = king_white_scaled
+            image_name = "white_king.png"
         else:
-            self.image = king_black_scaled
+            image_name = "black_king.png"
+        super().__init__(image_name, is_white, is_up)
 
 class Board():
     def __init__(self):
@@ -283,8 +288,6 @@ class Board():
         self.active_piece_moves = None
         
 
-
-        
 current_path = os.path.dirname(__file__)
 assets_path = os.path.join(current_path, 'assets')
 board_path = os.path.join(assets_path, 'board_elements')
@@ -293,8 +296,11 @@ board_path = os.path.join(assets_path, 'board_elements')
 pygame.init()
 
 # Define constants and variables
-tile_side_length = 64
-screen_size = (tile_side_length * 8, tile_side_length * 8)
+tile_side_px = 64
+screen_size = (1280, 720)
+board_y = (720 - tile_side_px * 8) / 2
+board_x = board_y
+board_pos = (board_x, board_y)
 
 screen = pygame.display.set_mode(screen_size)
 clock = pygame.time.Clock()
@@ -308,76 +314,42 @@ move_tile = pygame.image.load(os.path.join(
     board_path, "lgray_tile.png")).convert()
 
 dark_tile_scaled = pygame.transform.scale(
-    dark_tile, (tile_side_length, tile_side_length))
+    dark_tile, (tile_side_px, tile_side_px))
 light_tile_scaled = pygame.transform.scale(
-    light_tile, (tile_side_length, tile_side_length))
+    light_tile, (tile_side_px, tile_side_px))
 move_tile_scaled = pygame.transform.scale(
-    move_tile, (tile_side_length, tile_side_length))
+    move_tile, (tile_side_px, tile_side_px))
 
-
-pawn_white = pygame.image.load(os.path.join(
-    board_path, "white_pawn.png")).convert_alpha()
-pawn_black = pygame.image.load(os.path.join(
-    board_path, "black_pawn.png")).convert_alpha()
-knight_white = pygame.image.load(os.path.join(
-    board_path, "white_knight.png")).convert_alpha()
-knight_black = pygame.image.load(os.path.join(
-    board_path, "black_knight.png")).convert_alpha()
-bishop_white = pygame.image.load(os.path.join(
-    board_path, "white_bishop.png")).convert_alpha()
-bishop_black = pygame.image.load(os.path.join(
-    board_path, "black_bishop.png")).convert_alpha()
-rook_white = pygame.image.load(os.path.join(
-    board_path, "white_rook.png")).convert_alpha()
-rook_black = pygame.image.load(os.path.join(
-    board_path, "black_rook.png")).convert_alpha()
-queen_white = pygame.image.load(os.path.join(
-    board_path, "white_queen.png")).convert_alpha()
-queen_black = pygame.image.load(os.path.join(
-    board_path, "black_queen.png")).convert_alpha()
-king_white = pygame.image.load(os.path.join(
-    board_path, "white_king.png")).convert_alpha()
-king_black = pygame.image.load(os.path.join(
-    board_path, "black_king.png")).convert_alpha()
+board_backround = pygame.Surface((tile_side_px * 8, tile_side_px * 8)).convert()
+is_next_tile_dark = False
+for y in range(8):
+    for x in range(8):
+        if is_next_tile_dark:
+            board_backround.blit(dark_tile_scaled,
+                                 (x * tile_side_px, y * tile_side_px))
+        else:
+            board_backround.blit(light_tile_scaled,
+                                 (x * tile_side_px, y * tile_side_px))
+        is_next_tile_dark = not is_next_tile_dark
+    is_next_tile_dark = not is_next_tile_dark
+    
+board_rect = board_backround.get_rect()
+board_rect.x = board_x
+board_rect.y = board_y
 
 """
 pawn_white_scaled = pygame.transform.scale(
-    pawn_white, (int(tile_side_length * pawn_white.get_width()
-                     / pawn_white.get_height()), tile_side_length))
+    pawn_white, (int(tile_side_px * pawn_white.get_width()
+                     / pawn_white.get_height()), tile_side_px))
 """
-pawn_white_scaled = pygame.transform.scale(
-    pawn_white, (tile_side_length, tile_side_length))
-pawn_black_scaled = pygame.transform.scale(
-    pawn_black, (tile_side_length, tile_side_length))
-knight_white_scaled = pygame.transform.scale(
-    knight_white, (tile_side_length, tile_side_length))
-knight_black_scaled = pygame.transform.scale(
-    knight_black, (tile_side_length, tile_side_length))
-bishop_white_scaled = pygame.transform.scale(
-    bishop_white, (tile_side_length, tile_side_length))
-bishop_black_scaled = pygame.transform.scale(
-    bishop_black, (tile_side_length, tile_side_length))
-rook_white_scaled = pygame.transform.scale(
-    rook_white, (tile_side_length, tile_side_length))
-rook_black_scaled = pygame.transform.scale(
-    rook_black, (tile_side_length, tile_side_length))
-queen_white_scaled = pygame.transform.scale(
-    queen_white, (tile_side_length, tile_side_length))
-queen_black_scaled = pygame.transform.scale(
-    queen_black, (tile_side_length, tile_side_length))
-king_white_scaled = pygame.transform.scale(
-    king_white, (tile_side_length, tile_side_length))
-king_black_scaled = pygame.transform.scale(
-    king_black, (tile_side_length, tile_side_length))
-
-
 
 # Prepare the representation of the chess board and all current positions of
 # the chess pieces in the game
 
 chess_board = Board()
-draw_background()
-draw_pieces()
+draw_chess_board(board_pos)
+
+#draw_chess_board((0, 0))
 pygame.display.update()
 
 while 1:
@@ -385,28 +357,31 @@ while 1:
         if event.type == pygame.QUIT:
             sys.exit()
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            mouse_x, mouse_y = pygame.mouse.get_pos()
-            grid_x = int(mouse_x / tile_side_length)
-            grid_y = int(mouse_y / tile_side_length)
-            coordinates = (grid_x, grid_y)
-            #print(grid_x, grid_y)
-            
-            if chess_board.active_piece is not None:
-                if coordinates in chess_board.active_piece_moves:
-                    chess_board.move_active_piece(coordinates)
-                    chess_board.reset_active_piece()
+            mouse_pos = pygame.mouse.get_pos()
+            #if has_clicked_on_board(mouse_pos):
+            if board_rect.collidepoint(event.pos):
+                mouse_x, mouse_y = mouse_pos
+
+                grid_x = int((mouse_x - board_x) / tile_side_px)
+                grid_y = int((mouse_y - board_y) / tile_side_px)
+                coordinates = (grid_x, grid_y)
+                print(grid_x, grid_y)
+                
+                if chess_board.active_piece is not None:
+                    if coordinates in chess_board.active_piece_moves:
+                        chess_board.move_active_piece(coordinates)
+                        chess_board.reset_active_piece()
+                    elif chess_board.has_piece_on_position(coordinates):
+                        chess_board.set_active_piece(coordinates)
+                    else:
+                        chess_board.reset_active_piece()
+
                 elif chess_board.has_piece_on_position(coordinates):
                     chess_board.set_active_piece(coordinates)
-                else:
-                    chess_board.reset_active_piece()
-
-            elif chess_board.has_piece_on_position(coordinates):
-                chess_board.set_active_piece(coordinates)
-                
-            draw_background()
-            draw_moves_mask()
-            draw_pieces()
-            pygame.display.update()
+                    
+                draw_chess_board(board_pos)
+                #draw_chess_board((0, 0))
+                pygame.display.flip()
 
     clock.tick(60)
 
