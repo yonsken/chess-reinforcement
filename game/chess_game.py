@@ -155,9 +155,10 @@ class Board():
                     self.check_and_add_position(
                         available_moves, move_position)
 
-                    if not self.active_piece.has_moved:
+                    double_move_pos = (x_pos, y_pos + dir_sign * 2)
+                    if not self.active_piece.has_moved and not self.has_piece_on_position(double_move_pos):
                         self.check_and_add_position(
-                            available_moves, (x_pos, y_pos + dir_sign * 2))
+                            available_moves, double_move_pos)
 
                 possible_attack_positions = [
                     (x_pos + 1, y_pos + dir_sign), (x_pos - 1, y_pos + dir_sign)]
@@ -358,14 +359,12 @@ while 1:
             sys.exit()
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
-            #if has_clicked_on_board(mouse_pos):
             if board_rect.collidepoint(event.pos):
                 mouse_x, mouse_y = mouse_pos
 
                 grid_x = int((mouse_x - board_x) / tile_side_px)
                 grid_y = int((mouse_y - board_y) / tile_side_px)
                 coordinates = (grid_x, grid_y)
-                print(grid_x, grid_y)
                 
                 if chess_board.active_piece is not None:
                     if coordinates in chess_board.active_piece_moves:
