@@ -12,29 +12,6 @@ def load_image(image_name):
         image, (tile_side_px, tile_side_px))
     return image_scaled, image_scaled.get_rect()
 
-def has_clicked_on_board(mouse_click_coordinates):
-    mouse_x, mouse_y = mouse_click_coordinates
-    return mouse_x > board_x and mouse_y > board_y and mouse_x < board_x + board_rect.width and mouse_y < board_y + board_rect.height
-
-def draw_pieces():
-    for y in range(8):
-        for x in range(8):
-            piece = chess_board.board_grid[x][y]
-            if piece is not None:
-                screen.blit(piece.get_image(),
-                            (x * tile_side_px, y * tile_side_px))
-
-def draw_moves_mask():
-    if chess_board.active_piece is not None:
-        x, y = chess_board.active_piece_coordinates
-        screen.blit(move_tile_scaled,
-                    (x * tile_side_px, y * tile_side_px), special_flags=pygame.BLEND_ADD)
-
-        available_moves = chess_board.active_piece_moves
-        for move_coordinates in available_moves:
-            x, y = move_coordinates
-            screen.blit(move_tile_scaled,
-                        (x * tile_side_px, y * tile_side_px), special_flags=pygame.BLEND_ADD)
 
 def draw_chess_board(screen_coordinates):
     board = board_backround.copy()
