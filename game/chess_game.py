@@ -1,16 +1,20 @@
 import sys, pygame, os
 
-def load_image(image_name):
+def load_image(image_name, has_transparency=True, is_board_element=True):
     full_name = os.path.join(board_path, image_name)
     try:
         image = pygame.image.load(full_name)
     except pygame.error as message:
         print('Cannot load image: ', image_name)
         raise SystemExit(message)
-    image = image.convert_alpha()
-    image_scaled = pygame.transform.scale(
-        image, (tile_side_px, tile_side_px))
-    return image_scaled, image_scaled.get_rect()
+    if has_transparency:
+        image = image.convert_alpha()
+    else:
+        image = image.convert()
+    if is_board_element:
+        image = pygame.transform.scale(
+            image, (tile_side_px, tile_side_px))
+    return image, image.get_rect()
 
 
 def draw_chess_board(screen_coordinates):
@@ -35,8 +39,6 @@ def draw_chess_board(screen_coordinates):
 
     x_screen, y_screen = screen_coordinates
     screen.blit(board, (x_screen, y_screen))
-
-
 
 class Piece(pygame.sprite.Sprite):
     def __init__(self, image_name, is_white, is_up):
@@ -304,22 +306,18 @@ board_x = board_y
 board_pos = (board_x, board_y)
 
 screen = pygame.display.set_mode(screen_size)
+pygame.display.set_caption("Chess with Reinforcement learning")
 clock = pygame.time.Clock()
 
 # Load resources
-dark_tile = pygame.image.load(os.path.join(
-    board_path, "brown_tile.png")).convert()
-light_tile = pygame.image.load(os.path.join(
-    board_path, "clay_tile.png")).convert()
-move_tile = pygame.image.load(os.path.join(
-    board_path, "lgray_tile.png")).convert()
+dark_tile_scaled, _ = load_image("brown_tile.png", has_transparency=False)
+light_tile_scaled, _ = load_image("clay_tile.png", has_transparency=False)
+move_tile_scaled, _ = load_image("lgray_tile.png", has_transparency=False)
 
-dark_tile_scaled = pygame.transform.scale(
-    dark_tile, (tile_side_px, tile_side_px))
-light_tile_scaled = pygame.transform.scale(
-    light_tile, (tile_side_px, tile_side_px))
-move_tile_scaled = pygame.transform.scale(
-    move_tile, (tile_side_px, tile_side_px))
+background, _ = load_image("background.jpg", has_transparency=False, is_board_element=False)
+background = pygame.transform.scale(background, screen_size)
+icon, _ = load_image("icon.png", is_board_element=False)
+pygame.display.set_icon(icon)
 
 board_backround = pygame.Surface((tile_side_px * 8, tile_side_px * 8)).convert()
 is_next_tile_dark = False
@@ -348,9 +346,8 @@ pawn_white_scaled = pygame.transform.scale(
 # the chess pieces in the game
 
 chess_board = Board()
+screen.blit(background, (0, 0))
 draw_chess_board(board_pos)
-
-#draw_chess_board((0, 0))
 pygame.display.update()
 
 while 1:
