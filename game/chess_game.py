@@ -1,4 +1,7 @@
 import sys, pygame, os
+from scipy import ndimage
+import pygame.surfarray as surfarray
+import numpy as np
 
 def load_image(image_name, has_transparency=True, is_board_element=True):
     full_name = os.path.join(board_path, image_name)
@@ -16,8 +19,7 @@ def load_image(image_name, has_transparency=True, is_board_element=True):
             image, (tile_side_px, tile_side_px))
     return image, image.get_rect()
 
-
-def draw_chess_board(screen_coordinates):
+def get_updated_chess_board_surface():
     board = board_backround.copy()
 
     if chess_board.active_piece is not None:
@@ -37,13 +39,22 @@ def draw_chess_board(screen_coordinates):
                 board.blit(piece.get_image(),
                             (x * tile_side_px, y * tile_side_px))
 
+    return board
+
+def draw_chess_board(screen_coordinates):
+    board = get_updated_chess_board_surface()
     x_screen, y_screen = screen_coordinates
     screen.blit(board, (x_screen, y_screen))
 
+def draw_blurred_chess_board(screen_coordinates):
+    x_screen, y_screen = screen_coordinates
+    screen.blit(board_blurred, (x_screen, y_screen))
+
 class Piece(pygame.sprite.Sprite):
-    def __init__(self, image_name, is_white, is_up):
+    def __init__(self, image_name, board_pos, is_white, is_up):
         pygame.sprite.Sprite.__init__(self)
         self.image, self.rect = load_image(image_name)
+        self.board_pos = board_pos
         self.is_white = is_white
         self.is_up = is_up
 
@@ -51,82 +62,103 @@ class Piece(pygame.sprite.Sprite):
         return self.image
 
 class Pawn(Piece):
-    def __init__(self, is_white, is_up):
+    def __init__(self, board_pos, is_white, is_up):
         if is_white:
             image_name = "white_pawn.png"
         else:
             image_name = "black_pawn.png"
-        super().__init__(image_name, is_white, is_up)
+        super().__init__(image_name, board_pos, is_white, is_up)
 
         self.has_moved = False
 
 class Knight(Piece):
-    def __init__(self, is_white, is_up):
+    def __init__(self, board_pos, is_white, is_up):
         if is_white:
             image_name = "white_knight.png"
         else:
             image_name = "black_knight.png"
-        super().__init__(image_name, is_white, is_up)
+        super().__init__(image_name, board_pos, is_white, is_up)
 
 class Bishop(Piece):
-    def __init__(self, is_white, is_up):
+    def __init__(self, board_pos, is_white, is_up):
         if is_white:
             image_name = "white_bishop.png"
         else:
             image_name = "black_bishop.png"
-        super().__init__(image_name, is_white, is_up)
+        super().__init__(image_name, board_pos, is_white, is_up)
 
 class Rook(Piece):
-    def __init__(self, is_white, is_up):
+    def __init__(self, board_pos, is_white, is_up):
         if is_white:
             image_name = "white_rook.png"
         else:
             image_name = "black_rook.png"
-        super().__init__(image_name, is_white, is_up)
+        super().__init__(image_name, board_pos, is_white, is_up)
 
 class Queen(Piece):
-    def __init__(self, is_white, is_up):
+    def __init__(self, board_pos, is_white, is_up):
         if is_white:
             image_name = "white_queen.png"
         else:
             image_name = "black_queen.png"
-        super().__init__(image_name, is_white, is_up)
+        super().__init__(image_name, board_pos, is_white, is_up)
 
 class King(Piece):
-    def __init__(self, is_white, is_up):
+    def __init__(self, board_pos, is_white, is_up):
         if is_white:
             image_name = "white_king.png"
         else:
             image_name = "black_king.png"
-        super().__init__(image_name, is_white, is_up)
+        super().__init__(image_name, board_pos, is_white, is_up)
 
 class Board():
     def __init__(self):
-        self.board_grid = [[None] * 8 for i in range(8)] 
+        self.board_grid = [[None] * 8 for i in range(8)]
+        self.pieces = pygame.sprite.Group()
         self.reset_board()
 
     def reset_board(self):
-        self.board_grid[0][0] = Rook(is_white=False, is_up=True)
-        self.board_grid[1][0] = Knight(is_white=False, is_up=True)
-        self.board_grid[2][0] = Bishop(is_white=False, is_up=True)
-        self.board_grid[3][0] = Queen(is_white=False, is_up=True)
-        self.board_grid[4][0] = King(is_white=False, is_up=True)
-        self.board_grid[5][0] = Bishop(is_white=False, is_up=True)
-        self.board_grid[6][0] = Knight(is_white=False, is_up=True)
-        self.board_grid[7][0] = Rook(is_white=False, is_up=True)
+        self.board_grid[0][0] = Rook((0, 0), is_white=False, is_up=True)
+        self.pieces.add(self.board_grid[0][0])
+        self.board_grid[1][0] = Knight((1, 0), is_white=False, is_up=True)
+        self.pieces.add(self.board_grid[1][0])
+        self.board_grid[2][0] = Bishop((2, 0), is_white=False, is_up=True)
+        self.pieces.add(self.board_grid[2][0])
+        self.board_grid[3][0] = Queen((3, 0), is_white=False, is_up=True)
+        self.pieces.add(self.board_grid[3][0])
+        self.board_grid[4][0] = King((4, 0), is_white=False, is_up=True)
+        self.pieces.add(self.board_grid[4][0])
+        self.board_grid[5][0] = Bishop((5, 0), is_white=False, is_up=True)
+        self.pieces.add(self.board_grid[5][0])
+        self.board_grid[6][0] = Knight((6, 0), is_white=False, is_up=True)
+        self.pieces.add(self.board_grid[6][0])
+        self.board_grid[7][0] = Rook((7, 0), is_white=False, is_up=True)
+        self.pieces.add(self.board_grid[7][0])
     
         for column in range(8):
-            self.board_grid[column][1] = Pawn(is_white=False, is_up=True)
-            self.board_grid[column][6] = Pawn(is_white=True, is_up=False)
+            self.board_grid[column][1] = Pawn(
+                (column, 1), is_white=False, is_up=True)
+            self.pieces.add(self.board_grid[column][1])
+            self.board_grid[column][6] = Pawn(
+                (column, 6), is_white=True, is_up=False)
+            self.pieces.add(self.board_grid[column][6])
 
-        self.board_grid[0][7] = Rook(is_white=True, is_up=False)
-        self.board_grid[1][7] = Knight(is_white=True, is_up=False)
-        self.board_grid[2][7] = Bishop(is_white=True, is_up=False)
-        self.board_grid[3][7] = Queen(is_white=True, is_up=False)
-        self.board_grid[4][7] = King(is_white=True, is_up=False)
-        self.board_grid[5][7] = Bishop(is_white=True, is_up=False)
-        self.board_grid[6][7] = Knight(is_white=True, is_up=False)
-        self.board_grid[7][7] = Rook(is_white=True, is_up=False)
+        self.board_grid[0][7] = Rook((0, 7), is_white=True, is_up=False)
+        self.pieces.add(self.board_grid[0][7])
+        self.board_grid[1][7] = Knight((1, 7), is_white=True, is_up=False)
+        self.pieces.add(self.board_grid[1][7])
+        self.board_grid[2][7] = Bishop((2, 7), is_white=True, is_up=False)
+        self.pieces.add(self.board_grid[2][7])
+        self.board_grid[3][7] = Queen((3, 7), is_white=True, is_up=False)
+        self.pieces.add(self.board_grid[3][7])
+        self.board_grid[4][7] = King((4, 7), is_white=True, is_up=False)
+        self.pieces.add(self.board_grid[4][7])
+        self.board_grid[5][7] = Bishop((5, 7), is_white=True, is_up=False)
+        self.pieces.add(self.board_grid[5][7])
+        self.board_grid[6][7] = Knight((6, 7), is_white=True, is_up=False)
+        self.pieces.add(self.board_grid[6][7])
+        self.board_grid[7][7] = Rook((7, 7), is_white=True, is_up=False)
+        self.pieces.add(self.board_grid[7][7])
 
         self.active_piece = None
         self.active_piece_coordinates = None
@@ -141,68 +173,47 @@ class Board():
         self.active_piece_coordinates = coordinates
         self.active_piece_moves = self.get_active_piece_available_moves()
 
-    def get_active_piece_available_moves(self):
-        if self.active_piece is not None:
-            x_pos, y_pos = self.active_piece_coordinates
-            available_moves = []
+    def get_piece_available_moves(self, piece):
+        x_pos, y_pos = piece.board_pos
+        available_moves = []
 
-            if isinstance(self.active_piece, Pawn):
-                if self.active_piece.is_up:
-                    dir_sign = 1
-                else:
-                    dir_sign = -1
+        if isinstance(piece, Pawn):
+            if self.active_piece.is_up:
+                dir_sign = 1
+            else:
+                dir_sign = -1
 
-                move_position = (x_pos, y_pos + dir_sign)
-                if not self.has_piece_on_position(move_position):
+            move_position = (x_pos, y_pos + dir_sign)
+            if not self.has_piece_on_position(move_position):
+                self.check_and_add_position(
+                    available_moves, move_position)
+
+                double_move_pos = (x_pos, y_pos + dir_sign * 2)
+                if not piece.has_moved and not self.has_piece_on_position(double_move_pos):
                     self.check_and_add_position(
-                        available_moves, move_position)
+                        available_moves, double_move_pos)
 
-                    double_move_pos = (x_pos, y_pos + dir_sign * 2)
-                    if not self.active_piece.has_moved and not self.has_piece_on_position(double_move_pos):
-                        self.check_and_add_position(
-                            available_moves, double_move_pos)
+            possible_attack_positions = [
+                (x_pos + 1, y_pos + dir_sign), (x_pos - 1, y_pos + dir_sign)]
 
-                possible_attack_positions = [
-                    (x_pos + 1, y_pos + dir_sign), (x_pos - 1, y_pos + dir_sign)]
+            for position in possible_attack_positions:
+                if self.is_valid_position(position) and self.has_piece_on_position(position):
+                    other_piece = self.get_piece_at_position(position)
+                    if self.are_pieces_enemies(piece, other_piece):
+                        self.add_position(available_moves, position)
 
-                for position in possible_attack_positions:
-                    if self.is_valid_position(position) and self.has_piece_on_position(position):
-                        other_piece = self.get_piece_at_position(position)
-                        if self.are_pieces_enemies(self.active_piece, other_piece):
-                            self.add_position(available_moves, position)
+        elif isinstance(piece, Knight):
+            for offset_1 in [-2, 2]:
+                for offset_2 in [-1, 1]:
+                    self.check_and_add_position(
+                        available_moves, (x_pos + offset_1, y_pos + offset_2))
+                    self.check_and_add_position(
+                        available_moves, (x_pos + offset_2, y_pos + offset_1))
 
-
-            elif isinstance(self.active_piece, Knight):
-                for offset_1 in [-2, 2]:
-                    for offset_2 in [-1, 1]:
-                        self.check_and_add_position(
-                            available_moves, (x_pos + offset_1, y_pos + offset_2))
-                        self.check_and_add_position(
-                            available_moves, (x_pos + offset_2, y_pos + offset_1))
-
-            elif isinstance(self.active_piece, Bishop):
-                for x_offset in [-1, 1]:
-                    for y_offset in [-1, 1]:
-                        x_piece, y_piece = self.active_piece_coordinates
-                        x, y = x_piece + x_offset, y_piece + y_offset
-                        position = (x, y)
-
-                        has_reached_obstacle = False
-                        while self.is_valid_position(position) and not has_reached_obstacle:
-                            self.add_position(available_moves, position)
-                            
-                            if self.has_piece_on_position(position):
-                                has_reached_obstacle = True
-
-                            x, y = x + x_offset, y + y_offset
-                            position = (x, y)
-
-            elif isinstance(self.active_piece, Rook):
-                offsets = [(0, 1), (0, -1), (1, 0), (-1, 0)]
-                for offset in offsets:
-                    x_offset, y_offset = offset
-                    x_piece, y_piece = self.active_piece_coordinates
-                    x, y = x_piece + x_offset, y_piece + y_offset
+        elif isinstance(piece, Bishop):
+            for x_offset in [-1, 1]:
+                for y_offset in [-1, 1]:
+                    x, y = x_pos + x_offset, y_pos + y_offset
                     position = (x, y)
 
                     has_reached_obstacle = False
@@ -215,42 +226,58 @@ class Board():
                         x, y = x + x_offset, y + y_offset
                         position = (x, y)
 
-            elif isinstance(self.active_piece, Queen):
-                for x_offset in [-1, 0, 1]:
-                    for y_offset in [-1, 0, 1]:
-                        if x_offset == 0 and y_offset == 0:
-                            pass
+        elif isinstance(piece, Rook):
+            offsets = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+            for offset in offsets:
+                x_offset, y_offset = offset
+                x, y = x_pos + x_offset, y_pos + y_offset
+                position = (x, y)
 
-                        x_piece, y_piece = self.active_piece_coordinates
-                        x, y = x_piece + x_offset, y_piece + y_offset
+                has_reached_obstacle = False
+                while self.is_valid_position(position) and not has_reached_obstacle:
+                    self.add_position(available_moves, position)
+
+                    if self.has_piece_on_position(position):
+                        has_reached_obstacle = True
+
+                    x, y = x + x_offset, y + y_offset
+                    position = (x, y)
+
+        elif isinstance(piece, Queen):
+            for x_offset in [-1, 0, 1]:
+                for y_offset in [-1, 0, 1]:
+                    if x_offset == 0 and y_offset == 0:
+                        pass
+
+                    x, y = x_pos + x_offset, y_pos + y_offset
+                    position = (x, y)
+
+                    has_reached_obstacle = False
+                    while self.is_valid_position(position) and not has_reached_obstacle:
+                        self.add_position(available_moves, position)
+
+                        if self.has_piece_on_position(position):
+                            has_reached_obstacle = True
+
+                        x, y = x + x_offset, y + y_offset
                         position = (x, y)
 
-                        has_reached_obstacle = False
-                        while self.is_valid_position(position) and not has_reached_obstacle:
-                            self.add_position(available_moves, position)
+        elif isinstance(piece, King):
+            for x_offset in [-1, 0, 1]:
+                for y_offset in [-1, 0, 1]:
+                    if x_offset == 0 and y_offset == 0:
+                        pass
 
-                            if self.has_piece_on_position(position):
-                                has_reached_obstacle = True
+                    x, y = x_pos + x_offset, y_pos + y_offset
+                    position = (x, y)
 
-                            x, y = x + x_offset, y + y_offset
-                            position = (x, y)
+                    self.check_and_add_position(available_moves, position)
 
-            elif isinstance(self.active_piece, King):
-                for x_offset in [-1, 0, 1]:
-                    for y_offset in [-1, 0, 1]:
-                        if x_offset == 0 and y_offset == 0:
-                            pass
+        print(available_moves)
+        return available_moves
 
-                        x_piece, y_piece = self.active_piece_coordinates
-                        x, y = x_piece + x_offset, y_piece + y_offset
-                        position = (x, y)
-
-                        self.check_and_add_position(available_moves, position)
-            
-            print(available_moves)
-            return available_moves
-        else:
-            return None
+    def get_active_piece_available_moves(self):
+        return self.get_piece_available_moves(self.active_piece)
 
     def add_position(self, pos_list, coordinates):
         if not self.has_piece_on_position(coordinates):
@@ -278,7 +305,13 @@ class Board():
     def move_active_piece(self, target_coordinates):
         x_target, y_target = target_coordinates
         x_start, y_start = self.active_piece_coordinates
+
+        piece_at_target = self.get_piece_at_position(target_coordinates)
+        if piece_at_target is not None:
+            self.pieces.remove(piece_at_target)
+
         self.board_grid[x_target][y_target] = self.active_piece
+        self.active_piece.board_pos = target_coordinates
         self.board_grid[x_start][y_start] = None
 
         if isinstance(self.active_piece, Pawn):
@@ -314,7 +347,7 @@ dark_tile_scaled, _ = load_image("brown_tile.png", has_transparency=False)
 light_tile_scaled, _ = load_image("clay_tile.png", has_transparency=False)
 move_tile_scaled, _ = load_image("lgray_tile.png", has_transparency=False)
 
-background, _ = load_image("background.jpg", has_transparency=False, is_board_element=False)
+background, _ = load_image("background1.jpg", has_transparency=False, is_board_element=False)
 background = pygame.transform.scale(background, screen_size)
 icon, _ = load_image("icon.png", is_board_element=False)
 pygame.display.set_icon(icon)
@@ -336,48 +369,68 @@ board_rect = board_backround.get_rect()
 board_rect.x = board_x
 board_rect.y = board_y
 
-"""
-pawn_white_scaled = pygame.transform.scale(
-    pawn_white, (int(tile_side_px * pawn_white.get_width()
-                     / pawn_white.get_height()), tile_side_px))
-"""
+border_width = 20
+border_size = (tile_side_px * 8 + border_width, tile_side_px * 8 + border_width)
+board_border = pygame.Surface(border_size).convert()
+board_border.fill((32, 14, 11))
+#board_border_rect = board_backround.get_rect()
 
 # Prepare the representation of the chess board and all current positions of
 # the chess pieces in the game
 
 chess_board = Board()
+board_blurred = get_updated_chess_board_surface()
+board_blurred_array = surfarray.pixels3d(board_blurred)
+board_blurred_array = ndimage.gaussian_filter(board_blurred_array, sigma=(4, 4, 0))
+surfarray.blit_array(board_blurred, board_blurred_array)
+board_blurred_rect = board_blurred.get_rect()
+board_blurred_rect.x = board_x
+board_blurred_rect.y = board_y
+
 screen.blit(background, (0, 0))
-draw_chess_board(board_pos)
-pygame.display.update()
+screen.blit(board_border, (board_x - border_width /
+                           2, board_y - border_width / 2))
+draw_blurred_chess_board(board_pos)
+pygame.display.flip()
+
+is_game_in_process = False
+is_white_turn = True
 
 while 1:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             sys.exit()
         elif event.type == pygame.MOUSEBUTTONDOWN:
-            mouse_pos = pygame.mouse.get_pos()
             if board_rect.collidepoint(event.pos):
-                mouse_x, mouse_y = mouse_pos
-
-                grid_x = int((mouse_x - board_x) / tile_side_px)
-                grid_y = int((mouse_y - board_y) / tile_side_px)
-                coordinates = (grid_x, grid_y)
-                
-                if chess_board.active_piece is not None:
-                    if coordinates in chess_board.active_piece_moves:
-                        chess_board.move_active_piece(coordinates)
-                        chess_board.reset_active_piece()
-                    elif chess_board.has_piece_on_position(coordinates):
-                        chess_board.set_active_piece(coordinates)
-                    else:
-                        chess_board.reset_active_piece()
-
-                elif chess_board.has_piece_on_position(coordinates):
-                    chess_board.set_active_piece(coordinates)
+                if not is_game_in_process:
+                    is_game_in_process = True
+                    draw_chess_board(board_pos)
+                    pygame.display.flip()
+                else:
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    grid_x = int((mouse_x - board_x) / tile_side_px)
+                    grid_y = int((mouse_y - board_y) / tile_side_px)
+                    coordinates = (grid_x, grid_y)
                     
-                draw_chess_board(board_pos)
-                #draw_chess_board((0, 0))
-                pygame.display.flip()
+                    if chess_board.active_piece is not None:
+                        if coordinates in chess_board.active_piece_moves:
+                            chess_board.move_active_piece(coordinates)
+                            chess_board.reset_active_piece()
+                            is_white_turn = not is_white_turn
+                        elif chess_board.has_piece_on_position(coordinates):
+                            piece = chess_board.get_piece_at_position(coordinates)
+                            if piece.is_white == is_white_turn:
+                                chess_board.set_active_piece(coordinates)
+                        else:
+                            chess_board.reset_active_piece()
+
+                    elif chess_board.has_piece_on_position(coordinates):
+                        piece = chess_board.get_piece_at_position(coordinates)
+                        if piece.is_white == is_white_turn:
+                            chess_board.set_active_piece(coordinates)
+                        
+                    draw_chess_board(board_pos)
+                    pygame.display.flip()
 
     clock.tick(60)
 
