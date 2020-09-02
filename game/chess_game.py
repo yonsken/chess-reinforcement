@@ -128,6 +128,7 @@ class Board():
         self.pieces.add(self.board_grid[3][0])
         self.board_grid[4][0] = King((4, 0), is_white=False, is_up=True)
         self.pieces.add(self.board_grid[4][0])
+        self.king_black = self.board_grid[4][0]
         self.board_grid[5][0] = Bishop((5, 0), is_white=False, is_up=True)
         self.pieces.add(self.board_grid[5][0])
         self.board_grid[6][0] = Knight((6, 0), is_white=False, is_up=True)
@@ -153,6 +154,7 @@ class Board():
         self.pieces.add(self.board_grid[3][7])
         self.board_grid[4][7] = King((4, 7), is_white=True, is_up=False)
         self.pieces.add(self.board_grid[4][7])
+        self.king_white = self.board_grid[4][7]
         self.board_grid[5][7] = Bishop((5, 7), is_white=True, is_up=False)
         self.pieces.add(self.board_grid[5][7])
         self.board_grid[6][7] = Knight((6, 7), is_white=True, is_up=False)
@@ -178,7 +180,7 @@ class Board():
         available_moves = []
 
         if isinstance(piece, Pawn):
-            if self.active_piece.is_up:
+            if piece.is_up:
                 dir_sign = 1
             else:
                 dir_sign = -1
@@ -186,12 +188,12 @@ class Board():
             move_position = (x_pos, y_pos + dir_sign)
             if not self.has_piece_on_position(move_position):
                 self.check_and_add_position(
-                    available_moves, move_position)
+                    available_moves, move_position, piece)
 
                 double_move_pos = (x_pos, y_pos + dir_sign * 2)
                 if not piece.has_moved and not self.has_piece_on_position(double_move_pos):
                     self.check_and_add_position(
-                        available_moves, double_move_pos)
+                        available_moves, double_move_pos, piece)
 
             possible_attack_positions = [
                 (x_pos + 1, y_pos + dir_sign), (x_pos - 1, y_pos + dir_sign)]
@@ -200,15 +202,15 @@ class Board():
                 if self.is_valid_position(position) and self.has_piece_on_position(position):
                     other_piece = self.get_piece_at_position(position)
                     if self.are_pieces_enemies(piece, other_piece):
-                        self.add_position(available_moves, position)
+                        self.add_position(available_moves, position, piece)
 
         elif isinstance(piece, Knight):
             for offset_1 in [-2, 2]:
                 for offset_2 in [-1, 1]:
                     self.check_and_add_position(
-                        available_moves, (x_pos + offset_1, y_pos + offset_2))
+                        available_moves, (x_pos + offset_1, y_pos + offset_2), piece)
                     self.check_and_add_position(
-                        available_moves, (x_pos + offset_2, y_pos + offset_1))
+                        available_moves, (x_pos + offset_2, y_pos + offset_1), piece)
 
         elif isinstance(piece, Bishop):
             for x_offset in [-1, 1]:
@@ -218,7 +220,7 @@ class Board():
 
                     has_reached_obstacle = False
                     while self.is_valid_position(position) and not has_reached_obstacle:
-                        self.add_position(available_moves, position)
+                        self.add_position(available_moves, position, piece)
 
                         if self.has_piece_on_position(position):
                             has_reached_obstacle = True
@@ -235,7 +237,7 @@ class Board():
 
                 has_reached_obstacle = False
                 while self.is_valid_position(position) and not has_reached_obstacle:
-                    self.add_position(available_moves, position)
+                    self.add_position(available_moves, position, piece)
 
                     if self.has_piece_on_position(position):
                         has_reached_obstacle = True
@@ -254,7 +256,7 @@ class Board():
 
                     has_reached_obstacle = False
                     while self.is_valid_position(position) and not has_reached_obstacle:
-                        self.add_position(available_moves, position)
+                        self.add_position(available_moves, position, piece)
 
                         if self.has_piece_on_position(position):
                             has_reached_obstacle = True
@@ -271,7 +273,7 @@ class Board():
                     x, y = x_pos + x_offset, y_pos + y_offset
                     position = (x, y)
 
-                    self.check_and_add_position(available_moves, position)
+                    self.check_and_add_position(available_moves, position, piece)
 
         print(available_moves)
         return available_moves
@@ -279,17 +281,17 @@ class Board():
     def get_active_piece_available_moves(self):
         return self.get_piece_available_moves(self.active_piece)
 
-    def add_position(self, pos_list, coordinates):
+    def add_position(self, pos_list, coordinates, moving_piece):
         if not self.has_piece_on_position(coordinates):
                 pos_list.append(coordinates)
         else:
             other_piece = self.get_piece_at_position(coordinates)
-            if self.are_pieces_enemies(self.active_piece, other_piece):
+            if self.are_pieces_enemies(moving_piece, other_piece):
                 pos_list.append(coordinates)
 
-    def check_and_add_position(self, pos_list, coordinates):
+    def check_and_add_position(self, pos_list, coordinates, moving_piece):
         if self.is_valid_position(coordinates):
-            self.add_position(pos_list, coordinates)
+            self.add_position(pos_list, coordinates, moving_piece)
 
     def get_piece_at_position(self, coordinates):
         x_pos, y_pos = coordinates
@@ -322,6 +324,25 @@ class Board():
         self.active_piece = None
         self.active_piece_coordinates = None
         self.active_piece_moves = None
+
+    def is_king_in_check(self, is_king_white):
+        if is_king_white:
+            king_pos = self.king_white.board_pos
+        else:
+            king_pos = self.king_black.board_pos
+
+        king_in_check = False
+        for piece in self.pieces:
+            if piece.is_white != is_king_white:
+                print(piece)
+                enemy_piece_moves = self.get_piece_available_moves(piece)
+                if king_pos in enemy_piece_moves:
+                    king_in_check = True
+                    break
+
+        return king_in_check
+
+
         
 
 current_path = os.path.dirname(__file__)
@@ -417,6 +438,7 @@ while 1:
                             chess_board.move_active_piece(coordinates)
                             chess_board.reset_active_piece()
                             is_white_turn = not is_white_turn
+                            print(chess_board.is_king_in_check(is_white_turn))
                         elif chess_board.has_piece_on_position(coordinates):
                             piece = chess_board.get_piece_at_position(coordinates)
                             if piece.is_white == is_white_turn:
