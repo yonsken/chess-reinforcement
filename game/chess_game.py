@@ -99,6 +99,8 @@ class Rook(Piece):
             image_name = "black_rook.png"
         super().__init__(image_name, board_pos, is_white, is_up)
 
+        self.has_moved = False
+
 class Queen(Piece):
     def __init__(self, board_pos, is_white, is_up):
         if is_white:
@@ -114,6 +116,8 @@ class King(Piece):
         else:
             image_name = "black_king.png"
         super().__init__(image_name, board_pos, is_white, is_up)
+
+        self.has_moved = False
 
 class Board():
     def __init__(self):
@@ -180,7 +184,7 @@ class Board():
 
         self.last_move = None
         self.last_move_removed_piece = None
-        self.last_move_was_pawn_first_move = False
+        self.last_move_was_pieces_last_move = False
 
     def has_piece_on_position(self, coordinates):
         x, y = coordinates
@@ -289,8 +293,33 @@ class Board():
 
                     x, y = x_pos + x_offset, y_pos + y_offset
                     position = (x, y)
-
                     self.check_and_add_position(available_moves, position, piece)
+
+            # We don't have to check for the king being in check since a
+            # different procedure is used for finding available piece moves,
+            # when king is in check (not get_piece_available_moves())
+            if not piece.has_moved:
+                piece_right = self.get_piece_at_position((x_pos + 3, y_pos))
+                piece_left = self.get_piece_at_position((x_pos - 4, y_pos))
+                pieces = [piece_right, piece_left]
+
+                for castle_piece in pieces:
+                    if isinstance(castle_piece, Rook) and not self.are_pieces_enemies(piece, castle_piece) and not castle_piece.has_moved:
+                        x_castle, _ = castle_piece.board_pos
+                        no_pieces_inbetween = True
+                        for x in range(min(x_castle, x_pos) + 1, max(x_castle, x_pos)):
+                            if self.get_piece_at_position((x, y_pos)) is not None:
+                                no_pieces_inbetween = False
+                                break
+                        
+                        if no_pieces_inbetween:
+                            if min(x_castle, x_pos) == x_pos:
+                                x = x_pos + 2
+                            else:
+                                x = x_pos - 2
+                        
+                        position = (x, y_pos)
+                        self.add_position(available_moves, position, piece)
 
         return available_moves
 
@@ -314,6 +343,7 @@ class Board():
     def check_and_add_position(self, pos_list, coordinates, moving_piece):
         if self.is_valid_position(coordinates):
             #self.add_position(pos_list, coordinates, moving_piece)
+            # PROBABLY USELESS AND THE ABOVE WORKS JUST AS FINE
             if isinstance(moving_piece, King):
                 if coordinates not in self.enemy_potential_positions:
                     self.add_position(pos_list, coordinates, moving_piece)
@@ -348,11 +378,30 @@ class Board():
         piece.board_pos = target_coordinates
         self.board_grid[x_start][y_start] = None
 
-        if isinstance(piece, Pawn) and not piece.has_moved:
-            self.last_move_was_pawn_first_move = True
+        if (isinstance(piece, Pawn) or isinstance(piece, Rook) or isinstance(piece, King)) and not piece.has_moved:
+            self.last_move_was_pieces_last_move = True
             piece.has_moved = True
         else:
-            self.last_move_was_pawn_first_move = False
+            self.last_move_was_pieces_last_move = False
+
+        # Castle move
+        # The validity of the move is checked in get_piece_available_moves(),
+        # so we don't have to check it again
+        if isinstance(piece, King) and (x_target == x_start + 2 or x_target == x_start - 2):
+            if x_target == x_start + 2:
+                x_rook_start = x_start + 3
+                x_rook_finish = x_start + 1
+            else:
+                x_rook_start = x_start - 4
+                x_rook_finish = x_start - 1
+
+            rook = self.get_piece_at_position((x_rook_start, y_target))
+            self.board_grid[x_rook_finish][y_target] = rook
+            rook.board_pos = (x_rook_finish, y_target)
+            self.board_grid[x_rook_start][y_start] = None
+
+            rook.has_moved = True
+            
 
     def revert_last_move(self):
         (x_start, y_start), (x_target, y_target) = self.last_move
@@ -365,7 +414,7 @@ class Board():
         if removed_piece is not None:
             self.pieces.add(removed_piece)
 
-        if isinstance(moved_piece, Pawn) and self.last_move_was_pawn_first_move:
+        if (isinstance(piece, Pawn) or isinstance(piece, Rook) or isinstance(piece, King)) and self.last_move_was_pieces_last_move:
             moved_piece.has_moved = False
             
     def reset_active_piece(self):
