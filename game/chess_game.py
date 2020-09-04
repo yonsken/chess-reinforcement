@@ -416,7 +416,22 @@ class Board():
 
         if (isinstance(piece, Pawn) or isinstance(piece, Rook) or isinstance(piece, King)) and self.last_move_was_pieces_last_move:
             moved_piece.has_moved = False
-            
+
+        if isinstance(piece, King) and (x_start == x_target + 2 or x_start == x_target - 2):
+            if x_start == x_target - 2:
+                x_rook_start = x_start - 3
+                x_rook_finish = x_start - 1
+            else:
+                x_rook_start = x_start + 4
+                x_rook_finish = x_start + 1
+
+            rook = self.get_piece_at_position((x_rook_finish, y_start))
+            self.board_grid[x_rook_start][y_start] = rook
+            rook.board_pos = (x_rook_start, y_start)
+            self.board_grid[x_rook_finish][y_target] = None
+
+            rook.has_moved = False
+
     def reset_active_piece(self):
         self.active_piece = None
         self.active_piece_coordinates = None
