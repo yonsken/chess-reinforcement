@@ -2,6 +2,7 @@ import sys, pygame, os
 from scipy import ndimage
 import pygame.surfarray as surfarray
 import numpy as np
+import copy
 
 def load_image(image_name, has_transparency=True, is_board_element=True):
     full_name = os.path.join(board_path, image_name)
@@ -165,6 +166,17 @@ class Board():
         self.active_piece = None
         self.active_piece_coordinates = None
 
+        self.is_king_in_check = False
+        self.is_king_in_checkmate = False
+        self.stalemate = False
+
+        self.enemy_potential_positions = set()
+        self.ally_potential_position = set()
+
+        self.last_move = None
+        self.last_move_removed_piece = None
+        self.last_move_was_pawn_first_move = False
+
     def has_piece_on_position(self, coordinates):
         x, y = coordinates
         return self.board_grid[x][y] is not None
@@ -186,13 +198,13 @@ class Board():
                 dir_sign = -1
 
             move_position = (x_pos, y_pos + dir_sign)
-            if not self.has_piece_on_position(move_position):
-                self.check_and_add_position(
+            if self.is_valid_position(move_position) and not self.has_piece_on_position(move_position):
+                self.add_position(
                     available_moves, move_position, piece)
 
                 double_move_pos = (x_pos, y_pos + dir_sign * 2)
-                if not piece.has_moved and not self.has_piece_on_position(double_move_pos):
-                    self.check_and_add_position(
+                if not piece.has_moved and self.is_valid_position(double_move_pos) and not self.has_piece_on_position(double_move_pos):
+                    self.add_position(
                         available_moves, double_move_pos, piece)
 
             possible_attack_positions = [
@@ -275,7 +287,6 @@ class Board():
 
                     self.check_and_add_position(available_moves, position, piece)
 
-        print(available_moves)
         return available_moves
 
     def get_active_piece_available_moves(self):
@@ -292,7 +303,14 @@ class Board():
     def check_and_add_position(self, pos_list, coordinates, moving_piece):
         if self.is_valid_position(coordinates):
             self.add_position(pos_list, coordinates, moving_piece)
-
+            """
+            if isinstance(moving_piece, King):
+                if coordinates not in self.enemy_potential_positions:
+                    self.add_position(pos_list, coordinates, moving_piece)
+            else:
+                self.add_position(pos_list, coordinates, moving_piece)
+            """
+            
     def get_piece_at_position(self, coordinates):
         x_pos, y_pos = coordinates
         return self.board_grid[x_pos][y_pos]
@@ -304,46 +322,172 @@ class Board():
         x_pos, y_pos = coordinates
         return x_pos > -1 and x_pos < 8 and y_pos > -1 and y_pos < 8
 
-    def move_active_piece(self, target_coordinates):
+    def move_piece(self, piece, target_coordinates):
         x_target, y_target = target_coordinates
-        x_start, y_start = self.active_piece_coordinates
+        x_start, y_start = piece.board_pos
 
         piece_at_target = self.get_piece_at_position(target_coordinates)
         if piece_at_target is not None:
+            self.last_move_removed_piece = piece_at_target
             self.pieces.remove(piece_at_target)
+        else:
+            self.last_move_removed_piece = None
 
-        self.board_grid[x_target][y_target] = self.active_piece
-        self.active_piece.board_pos = target_coordinates
+        self.last_move = (piece.board_pos, target_coordinates)
+
+        self.board_grid[x_target][y_target] = piece
+        piece.board_pos = target_coordinates
         self.board_grid[x_start][y_start] = None
 
-        if isinstance(self.active_piece, Pawn):
-            if self.active_piece.has_moved == False:
-                self.active_piece.has_moved = True
+        if isinstance(piece, Pawn) and not piece.has_moved:
+            self.last_move_was_pawn_first_move = True
+            piece.has_moved = True
+        else:
+            self.last_move_was_pawn_first_move = False
 
+    def revert_last_move(self):
+        (x_start, y_start), (x_target, y_target) = self.last_move
+        moved_piece = self.board_grid[x_target][y_target]
+        self.board_grid[x_start][y_start] = moved_piece
+        moved_piece.board_pos = (x_start, y_start)
+
+        removed_piece = self.last_move_removed_piece
+        self.board_grid[x_target][y_target] = removed_piece
+        if removed_piece is not None:
+            self.pieces.add(removed_piece)
+
+        if isinstance(moved_piece, Pawn) and self.last_move_was_pawn_first_move:
+            moved_piece.has_moved = False
+            
     def reset_active_piece(self):
         self.active_piece = None
         self.active_piece_coordinates = None
         self.active_piece_moves = None
 
-    def is_king_in_check(self, is_king_white):
-        if is_king_white:
-            king_pos = self.king_white.board_pos
-        else:
-            king_pos = self.king_black.board_pos
-
-        king_in_check = False
+    def update_enemy_potential_positions(self, is_king_white):
+        enemy_possible_moves = set()
         for piece in self.pieces:
             if piece.is_white != is_king_white:
-                print(piece)
                 enemy_piece_moves = self.get_piece_available_moves(piece)
-                if king_pos in enemy_piece_moves:
-                    king_in_check = True
-                    break
+                enemy_possible_moves.update(enemy_piece_moves)
+        self.enemy_potential_positions = enemy_possible_moves
 
-        return king_in_check
+    def update_ally_potential_positions(self, is_king_white):
+        ally_possible_moves = set()
+        for piece in self.pieces:
+            if piece.is_white == is_king_white:
+                ally_piece_moves = self.get_piece_available_moves(piece)
+                ally_possible_moves.update(ally_piece_moves)
+        self.ally_potential_position = ally_possible_moves
+
+    def update_is_king_in_check(self, is_king_white):
+        if is_king_white:
+            king = self.king_white
+        else:
+            king = self.king_black
+        king_pos = king.board_pos
+
+        if king_pos in self.enemy_potential_positions:
+            self.is_king_in_check = True
+        else:
+            self.is_king_in_check = False
+
+    def update_board_status(self, is_king_white):
+        if is_king_white:
+            king = self.king_white
+        else:
+            king = self.king_black
+        king_pos = king.board_pos
+
+        # Find all positions that enemy pieces can attack on the next
+        # opponent's turn, and all positions to which at least one allied piece 
+        # can move to check for the stalemate condition (except for the king
+        # piece, we need to update self.enemy_potential_positions first)
+        """
+        enemy_possible_moves = set()
+        ally_possible_moves = set()
+        for piece in self.pieces:
+            if piece.is_white != is_king_white:
+                enemy_piece_moves = self.get_piece_available_moves(piece)
+                enemy_possible_moves.update(enemy_piece_moves)
+            elif piece is not king:
+                ally_piece_moves = self.get_piece_available_moves(piece)
+                ally_possible_moves.update(ally_piece_moves)
+        self.enemy_potential_positions = enemy_possible_moves
+        self.ally_potential_position = ally_possible_moves
+        """
+        self.update_enemy_potential_positions(is_king_white)
+        self.update_ally_potential_positions(is_king_white)
+
+        # Update the board statuses in respect to the current player's king's
+        # position and threats
+        """
+        if king_pos in enemy_possible_moves:
+            self.is_king_in_check = True
+        else:
+            self.is_king_in_check = False
+        """
+        self.update_is_king_in_check(is_king_white)
+
+        # Since we updated enemy_potential_positions, which is a set of all positions 
+        # that enemy pieces can attack on the next opponent's turn, we can 
+        # find if the king is checkmated or if a stalemate occured
+        """
+        kings_possible_moves = self.get_piece_available_moves(king)
+        print(kings_possible_moves)
+        print(not kings_possible_moves)
+        if not kings_possible_moves and self.is_king_in_check:
+            self.is_king_in_checkmate = True
+            self.stalemate = False
+        elif not kings_possible_moves and not ally_possible_moves and not self.is_king_in_check:
+            self.stalemate = True
+            self.is_king_in_checkmate = False
+        else:
+            self.stalemate = False
+            self.is_king_in_checkmate = False
+
+        print("King in check: ", self.is_king_in_check)
+        print("King in checkmate ", self.is_king_in_checkmate)
+        print("Stalemate ", self.stalemate)
+        """
+        if self.is_king_in_check:
+            self.update_is_king_in_checkmate(is_king_white)
+
+        print("King in check:", self.is_king_in_check)
+        print("King in checkmate:", self.is_king_in_checkmate)
 
 
-        
+    def update_is_king_in_checkmate(self, is_king_white):
+        #print("Checking if a checkmate occured")
+        if is_king_white:
+            king = self.king_white
+        else:
+            king = self.king_black
+        king_pos = king.board_pos
+
+        #enemy_potential_positions_saved = self.enemy_potential_positions
+        #king_in_check_saved = self.is_king_in_check
+
+        self.is_king_in_checkmate = True
+        for piece in self.pieces:
+            if piece.is_white == is_king_white:
+                piece_possible_moves = self.get_piece_available_moves(piece)
+                for position in piece_possible_moves:
+                    self.move_piece(piece, position)
+                    self.update_enemy_potential_positions(is_king_white)
+                    #print(self.enemy_potential_positions)
+                    self.update_is_king_in_check(is_king_white)
+                    if not self.is_king_in_check:
+                        self.is_king_in_checkmate = False
+                        self.revert_last_move()
+                        #self.enemy_potential_positions = enemy_potential_positions_saved
+                        #self.is_king_in_check = king_in_check_saved
+                        return
+
+                    self.revert_last_move()
+                    #self.enemy_potential_positions = enemy_potential_positions_saved
+                    #self.is_king_in_check = king_in_check_saved
+
 
 current_path = os.path.dirname(__file__)
 assets_path = os.path.join(current_path, 'assets')
@@ -398,7 +542,6 @@ board_border.fill((32, 14, 11))
 
 # Prepare the representation of the chess board and all current positions of
 # the chess pieces in the game
-
 chess_board = Board()
 board_blurred = get_updated_chess_board_surface()
 board_blurred_array = surfarray.pixels3d(board_blurred)
@@ -425,8 +568,6 @@ while 1:
             if board_rect.collidepoint(event.pos):
                 if not is_game_in_process:
                     is_game_in_process = True
-                    draw_chess_board(board_pos)
-                    pygame.display.flip()
                 else:
                     mouse_x, mouse_y = pygame.mouse.get_pos()
                     grid_x = int((mouse_x - board_x) / tile_side_px)
@@ -435,10 +576,10 @@ while 1:
                     
                     if chess_board.active_piece is not None:
                         if coordinates in chess_board.active_piece_moves:
-                            chess_board.move_active_piece(coordinates)
+                            chess_board.move_piece(chess_board.active_piece, coordinates)
                             chess_board.reset_active_piece()
                             is_white_turn = not is_white_turn
-                            print(chess_board.is_king_in_check(is_white_turn))
+                            chess_board.update_board_status(is_white_turn)
                         elif chess_board.has_piece_on_position(coordinates):
                             piece = chess_board.get_piece_at_position(coordinates)
                             if piece.is_white == is_white_turn:
@@ -451,8 +592,8 @@ while 1:
                         if piece.is_white == is_white_turn:
                             chess_board.set_active_piece(coordinates)
                         
-                    draw_chess_board(board_pos)
-                    pygame.display.flip()
+                draw_chess_board(board_pos)
+                pygame.display.flip()
 
     clock.tick(60)
 
