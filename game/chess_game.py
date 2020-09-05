@@ -402,7 +402,7 @@ class Board():
         self.board_grid[x_start][y_start] = None
 
         # En passant
-        if isinstance(piece, Pawn) and abs(y_start - y_target) == 2 and not piece.has_moved:
+        if isinstance(piece, Pawn) and abs(y_start - y_target) == 2:
             piece.can_be_attacked_enpassant = True
 
         if (isinstance(piece, Pawn) or isinstance(piece, Rook) or isinstance(piece, King)) and not piece.has_moved:
@@ -437,7 +437,11 @@ class Board():
         moved_piece.board_pos = (x_start, y_start)
 
         removed_piece = self.last_move_removed_piece
-        self.board_grid[x_target][y_target] = removed_piece
+        if isinstance(moved_piece, Pawn) and x_start != x_target:  # En passant
+            self.board_grid[x_target][y_start] = removed_piece
+            self.board_grid[x_target][y_target] = None
+        else:
+            self.board_grid[x_target][y_target] = removed_piece
         if removed_piece is not None:
             self.pieces.add(removed_piece)
 
