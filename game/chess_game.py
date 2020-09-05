@@ -315,11 +315,17 @@ class Board():
                         if no_pieces_inbetween:
                             if min(x_castle, x_pos) == x_pos:
                                 x = x_pos + 2
+                                x_rook = x_pos + 1
                             else:
                                 x = x_pos - 2
+                                x_rook = x_pos - 1
                         
-                        position = (x, y_pos)
-                        self.add_position(available_moves, position, piece)
+                            position = (x, y_pos)
+                            # We need to check that we do not pass a square that
+                            # is under attack, and that we do not move into check
+                            # as per the required conditions for castling
+                            if (x_rook, y_pos) not in self.enemy_potential_positions:
+                                self.check_and_add_position(available_moves, position, piece)
 
         return available_moves
 
