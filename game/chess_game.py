@@ -179,7 +179,7 @@ class Board():
         self.is_king_in_checkmate = False
         self.stalemate = False
 
-        self.enemy_potential_positions = set()
+        self.enemy_potential_attack_positions = set()
         self.ally_potential_position = set()
 
         self.check_save_piece_position_dict = dict()
@@ -213,7 +213,7 @@ class Board():
                 available_moves, move_position, piece, check_king_exposure, False)
 
             double_move_pos = (x_pos, y_pos + dir_sign * 2)
-            if not piece.has_moved:
+            if not piece.has_moved and self.is_valid_position(move_position) and not self.has_piece_on_position(move_position):
                 self.check_and_add_position(
                     available_moves, double_move_pos, piece, check_king_exposure, False)
 
@@ -338,7 +338,7 @@ class Board():
                             # We need to check that we do not pass a square that
                             # is under attack, and that we do not move into check
                             # as per the required conditions for castling
-                            if (x_rook, y_pos) not in self.enemy_potential_positions:
+                            if (x_rook, y_pos) not in self.enemy_potential_attack_positions:
                                 self.check_and_add_position(
                                     available_moves, position, piece, check_king_exposure)
 
@@ -353,39 +353,41 @@ class Board():
             else:
                 return set()
 
-    def add_position(self, pos_list, coordinates, moving_piece, check_king_exposure, can_move_if_enemy_pos):
+    def add_position(self, pos_list, coordinates, moving_piece, check_king_exposure, can_attack):
         if not self.has_piece_on_position(coordinates):
-
-            if check_king_exposure:
+            """
+            if check_king_exposure and not isinstance(moving_piece, King):
                 if not self.does_move_expose_king(moving_piece, coordinates): ### !!!
                     pos_list.add(coordinates)
             else:
                 pos_list.add(coordinates)
+            """
 
-            #pos_list.add(coordinates)
-        elif can_move_if_enemy_pos:
+            pos_list.add(coordinates)
+        elif can_attack:
             other_piece = self.get_piece_at_position(coordinates)
             if self.are_pieces_enemies(moving_piece, other_piece):
-
-                if check_king_exposure:
+                """
+                if check_king_exposure and not isinstance(moving_piece, King):
                     if not self.does_move_expose_king(moving_piece, coordinates): 
                         pos_list.add(coordinates)
                 else:
                     pos_list.add(coordinates)
+                """
 
-                #pos_list.add(coordinates)
+                pos_list.add(coordinates)
 
-    def check_and_add_position(self, pos_list, coordinates, moving_piece, check_king_exposure, can_move_if_enemy_pos = True):
+    def check_and_add_position(self, pos_list, coordinates, moving_piece, check_king_exposure, can_attack = True):
         if self.is_valid_position(coordinates):
             # For kings we need to check that a move does not result in a king 
             # being in check
             if isinstance(moving_piece, King):
-                if coordinates not in self.enemy_potential_positions:
+                if coordinates not in self.enemy_potential_attack_positions: ### ISSUE WITH KING AND A PAWN
                     self.add_position(pos_list, coordinates,
-                                      moving_piece, check_king_exposure, can_move_if_enemy_pos)
+                                      moving_piece, check_king_exposure, can_attack)
             else:
                 self.add_position(pos_list, coordinates,
-                                  moving_piece, check_king_exposure, can_move_if_enemy_pos)
+                                  moving_piece, check_king_exposure, can_attack)
 
             
     def get_piece_at_position(self, coordinates):
@@ -400,31 +402,47 @@ class Board():
         return x_pos > -1 and x_pos < 8 and y_pos > -1 and y_pos < 8
 
     def move_piece(self, piece, target_coordinates):
+        print(piece, piece.board_pos, "=>", target_coordinates)
         x_target, y_target = target_coordinates
         x_start, y_start = piece.board_pos
+        # Update the last move
+        self.last_move = (piece.board_pos, target_coordinates)
 
+        # Determine if an enemy piece gets removed as a result of this move.
+        # In case it does, we need to remove it from both the board and the
+        # pieces Group, but also save it as last_move_removed_piece in case
+        # we want to revert this move
         piece_at_target = self.get_piece_at_position(target_coordinates)
+        # Case 1: a piece on the target position
         if piece_at_target is not None:
             self.last_move_removed_piece = piece_at_target
             self.pieces.remove(piece_at_target)
-        elif isinstance(piece, Pawn) and x_start != x_target: # En passant
+        # Case 2: en passant special case where a piece gets removed from the
+        # board, but not from the target position of the move
+        elif isinstance(piece, Pawn) and x_start != x_target:
             removed_pawn = self.get_piece_at_position((x_target, y_start))
             self.last_move_removed_piece = removed_pawn
             self.pieces.remove(removed_pawn)
             self.board_grid[x_target][y_start] = None
+        # Case 3: no piece on the target position and not en passant
         else:
             self.last_move_removed_piece = None
 
-        self.last_move = (piece.board_pos, target_coordinates)
-
+        # Move the piece on the board and update its position variable
         self.board_grid[x_target][y_target] = piece
         piece.board_pos = target_coordinates
         self.board_grid[x_start][y_start] = None
 
-        # En passant
+        # If this move is a pawn moving two positions then we need to make it
+        # vulnerable to en passant
+        # This status variable will be updated on the next move of the same
+        # colour player for all their pawns
         if isinstance(piece, Pawn) and abs(y_start - y_target) == 2:
             piece.can_be_attacked_enpassant = True
 
+        # Update if a piece moved if it matters for this moving piece
+        # Keeping track of the move being first for a special piece is
+        # necessary for move reversion
         if (isinstance(piece, Pawn) or isinstance(piece, Rook) or isinstance(piece, King)) and not piece.has_moved:
             self.last_move_was_pieces_first_move = True
             piece.has_moved = True
@@ -458,8 +476,9 @@ class Board():
 
         removed_piece = self.last_move_removed_piece
         if removed_piece is not None:
-            x_removed, y_removed = removed_piece.board_pos
+            self.pieces.add(removed_piece)
             # Check if the move was en passant
+            x_removed, y_removed = removed_piece.board_pos
             if isinstance(moved_piece, Pawn) and y_removed != y_target:
                 self.board_grid[x_target][y_start] = removed_piece
                 self.board_grid[x_target][y_target] = None
@@ -468,30 +487,7 @@ class Board():
         else:
             self.board_grid[x_target][y_target] = None
 
-        """
-        if isinstance(moved_piece, Pawn) and x_start != x_target:  # En passant
-            self.board_grid[x_target][y_start] = removed_piece
-            self.board_grid[x_target][y_target] = None
-        else:
-            self.board_grid[x_target][y_target] = removed_piece
-
-        if removed_piece is not None:
-            self.pieces.add(removed_piece)
-
-        ######
-
-        piece_at_target = self.get_piece_at_position(target_coordinates)
-        if piece_at_target is not None:
-            self.last_move_removed_piece = piece_at_target
-            self.pieces.remove(piece_at_target)
-        elif isinstance(piece, Pawn) and x_start != x_target: # En passant
-            removed_pawn = self.get_piece_at_position((x_target, y_start))
-            self.last_move_removed_piece = removed_pawn
-            self.pieces.remove(removed_pawn)
-            self.board_grid[x_target][y_start] = None
-        else:
-            self.last_move_removed_piece = None
-        """
+        print(self.pieces)
 
         # En passant
         if isinstance(moved_piece, Pawn) and abs(y_start - y_target) == 2:
@@ -523,16 +519,31 @@ class Board():
     def update_enpassant_pawns(self):
         for piece in self.pieces:
             if isinstance(piece, Pawn) and piece.is_white == self.is_white_turn and piece.can_be_attacked_enpassant:
-                print("A pawn can no longer be attacked en passant!")
+                #print("A pawn can no longer be attacked en passant!")
                 piece.can_be_attacked_enpassant = False
 
-    def update_enemy_potential_positions(self, check_king_exposure = True):
+    def update_enemy_potential_attack_positions(self, check_king_exposure = True):
         enemy_possible_moves = set()
         for piece in self.pieces:
             if piece.is_white != self.is_white_turn:
-                enemy_piece_moves = self.get_piece_available_moves(piece, check_king_exposure)
+                if isinstance(piece, Pawn):
+                    x_pos, y_pos = piece.board_pos
+                    if piece.is_up:
+                        dir_sign = 1
+                    else:
+                        dir_sign = -1
+
+                    possible_attack_positions = [
+                        (x_pos + 1, y_pos + dir_sign), (x_pos - 1, y_pos + dir_sign)]
+                    enemy_piece_moves = set()
+                    for position in possible_attack_positions:
+                        self.check_and_add_position(
+                            enemy_piece_moves, position, piece, check_king_exposure)
+                else:
+                    enemy_piece_moves = self.get_piece_available_moves(
+                        piece, check_king_exposure)
                 enemy_possible_moves.update(enemy_piece_moves)
-        self.enemy_potential_positions = enemy_possible_moves
+        self.enemy_potential_attack_positions = enemy_possible_moves
 
     def update_is_king_in_check(self):
         if self.is_white_turn:
@@ -541,7 +552,7 @@ class Board():
             king = self.king_black
         king_pos = king.board_pos
 
-        if king_pos in self.enemy_potential_positions:
+        if king_pos in self.enemy_potential_attack_positions:
             self.is_king_in_check = True
         else:
             self.is_king_in_check = False
@@ -561,14 +572,14 @@ class Board():
         # Find all positions that enemy pieces can attack on the next
         # opponent's turn, and all positions to which at least one allied piece 
         # can move to check for the stalemate condition (except for the king
-        # piece, we need to update self.enemy_potential_positions first)
-        self.update_enemy_potential_positions()
+        # piece, we need to update self.enemy_potential_attack_positions first)
+        self.update_enemy_potential_attack_positions()
 
         # Update the board statuses in respect to the current player's king's
         # position and threats
         self.update_is_king_in_check()
 
-        # Since we updated enemy_potential_positions, which is a set of all positions 
+        # Since we updated enemy_potential_attack_positions, which is a set of all positions 
         # that enemy pieces can attack on the next opponent's turn, we can 
         # find if the king is checkmated or if a stalemate occured
         if self.is_king_in_check:
@@ -580,22 +591,23 @@ class Board():
         print("King in checkmate:", self.is_king_in_checkmate)
 
     def does_move_expose_king(self, piece, move_pos):
-        enemy_potential_positions_saved = self.enemy_potential_positions
+        enemy_potential_positions_saved = self.enemy_potential_attack_positions
         is_king_in_check_saved = self.is_king_in_check
 
         self.move_piece(piece, move_pos)
-        self.update_enemy_potential_positions(check_king_exposure = False)
+        self.update_enemy_potential_attack_positions(check_king_exposure = False)
+        print(self.enemy_potential_attack_positions)
         self.update_is_king_in_check()
         check_result = self.is_king_in_check
             
         self.revert_last_move()
-        self.enemy_potential_positions = enemy_potential_positions_saved
+        self.enemy_potential_attack_positions = enemy_potential_positions_saved
         self.is_king_in_check = is_king_in_check_saved
 
         return check_result
 
     def update_is_king_in_checkmate(self):
-        enemy_potential_positions_saved = self.enemy_potential_positions
+        enemy_potential_positions_saved = self.enemy_potential_attack_positions
         check_save_piece_position_dict = dict()
         self.is_king_in_checkmate = True
         for piece in self.pieces:
@@ -603,7 +615,7 @@ class Board():
                 piece_possible_moves = self.get_piece_available_moves(piece)
                 for position in piece_possible_moves:
                     self.move_piece(piece, position)
-                    self.update_enemy_potential_positions()
+                    self.update_enemy_potential_attack_positions()
                     self.update_is_king_in_check()
                     if not self.is_king_in_check:
                         self.is_king_in_checkmate = False
@@ -613,7 +625,7 @@ class Board():
                         #return
                     self.revert_last_move()
 
-        self.enemy_potential_positions = enemy_potential_positions_saved
+        self.enemy_potential_attack_positions = enemy_potential_positions_saved
         self.is_king_in_check = True
         print(check_save_piece_position_dict)
         self.check_save_piece_position_dict = check_save_piece_position_dict
