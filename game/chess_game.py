@@ -324,6 +324,7 @@ class Board():
                         x_castle, _ = castle_piece.board_pos
                         no_pieces_inbetween = True
                         for x in range(min(x_castle, x_pos) + 1, max(x_castle, x_pos)):
+                            print(x)
                             if self.get_piece_at_position((x, y_pos)) is not None:
                                 no_pieces_inbetween = False
                                 break
@@ -357,15 +358,12 @@ class Board():
 
     def add_position(self, pos_list, coordinates, moving_piece, check_king_exposure, can_attack):
         if not self.has_piece_on_position(coordinates):
-
             if check_king_exposure:
-                if not self.does_move_expose_king(moving_piece, coordinates): ### !!!
+                if not self.does_move_expose_king(moving_piece, coordinates):
                     pos_list.add(coordinates)
             else:
                 pos_list.add(coordinates)
 
-
-            #pos_list.add(coordinates)
         elif can_attack:
             other_piece = self.get_piece_at_position(coordinates)
             if self.are_pieces_enemies(moving_piece, other_piece):
@@ -376,15 +374,11 @@ class Board():
                 else:
                     pos_list.add(coordinates)
 
-
-                #pos_list.add(coordinates)
-
     def check_and_add_position(self, pos_list, coordinates, moving_piece, check_king_exposure, can_attack = True):
         if self.is_valid_position(coordinates):
-            # For kings we need to check that a move does not result in a king 
-            # being in check
+            # THE KING PART IS PROBABLY UNNECESSARY SINCE NOW I HAVE does_move_expose_king()
             if isinstance(moving_piece, King):
-                if coordinates not in self.enemy_potential_attack_positions: ### ISSUE WITH KING AND A PAWN
+                if coordinates not in self.enemy_potential_attack_positions:
                     self.add_position(pos_list, coordinates,
                                       moving_piece, check_king_exposure, can_attack)
             else:
@@ -498,14 +492,15 @@ class Board():
 
         if (isinstance(moved_piece, Pawn) or isinstance(moved_piece, Rook) or isinstance(moved_piece, King)) and self.last_move_was_pieces_first_move:
             moved_piece.has_moved = False
+            self.last_move_was_pieces_first_move = False
 
         if isinstance(moved_piece, King) and (x_start == x_target + 2 or x_start == x_target - 2):
             if x_start == x_target - 2:
-                x_rook_start = x_start - 3
-                x_rook_finish = x_start - 1
-            else:
-                x_rook_start = x_start + 4
+                x_rook_start = x_start + 3
                 x_rook_finish = x_start + 1
+            else:
+                x_rook_start = x_start - 4
+                x_rook_finish = x_start - 1
 
             rook = self.get_piece_at_position((x_rook_finish, y_start))
             self.board_grid[x_rook_start][y_start] = rook
